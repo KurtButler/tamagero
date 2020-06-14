@@ -300,7 +300,7 @@ const String tamanames[] PROGMEM = { //Length 10 strings
 "Ikumi     ",
 "Osuo      ",
 "Yrettab   ",
-"NO    NAME" };
+"Same-Same " };
 
 
 
@@ -310,31 +310,36 @@ int MenuSt = 0;   //Menu State Variable
 int MenuSel = 0;  //Menu Selector Variable
 int MenuWind = 0; //Menu window no.
 int MenuNextSt = 0;//Menu state to be transitioned to after half an A-press.
+
+// Timing variables
 int Twait = 300; //Time to wait after pressing a button.
+int eggagemax = 100; //Max egg age before hatching
+int aniTimer = 60;
+int aniSt = 0;
+int aniDir = 1;
+int aniX = 0;
 
 // Player variables
 int xp = 0;
 int txp = 0;
 int xpcntr = 0;
 int money = 0;
+bool dex[25];
 
 // Tamagero state
-int hungry = 0;
-int bored  = 0;
-int dirty  = 0;
+float hungry = 0;
+float bored  = 0;
+float dirty  = 0;
 int level  = 0;
 bool alive = true;
 bool egg   = false; // make sure this is true before running
 int age = 0;
 int tamaid = 1;
 
-// Tamagero bio
-
 // Other game variables
-int hmax = 6000; //Max hunger level before running away
-int dmax = 7500; //Max dirty level befroe running away
-int bmax = 5000; //Max dirty level befroe running away
-int eggagemax = 100; //Max egg age before hatching
+float hmax = 6000.0; //Max hunger level before running away
+float dmax = 7500.0; //Max dirty level befroe running away
+float bmax = 5000.0; //Max dirty level befroe running away
 bool enLED = false; //Enable LED indicator for Tamagero health
 int L = 10;
 const int8_t sprite[32] PROGMEM = {
@@ -360,6 +365,12 @@ int dialogue(String string) {
   return 0;
 }
 
+void setID(int id) {
+  // Wrapper that aligns seen Tamagero with the Tamadex listing
+  tamaid = id;
+  dex[id] = true;
+}
+
 
 
 // <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <> <>
@@ -370,7 +381,6 @@ void setup() {
   ab.begin(); //Arduboy splash
   ab.setFrameRate(30);
   ab.initRandomSeed();
-  tamaid = 0;//rand()%25;
   ab.clear();
 
 
@@ -382,6 +392,12 @@ void setup() {
   digitalWrite(RED_LED, LOW);
   digitalWrite(GREEN_LED, LOW);
   digitalWrite(BLUE_LED, HIGH);
+  
+  // ============= Game Init! ==================
+  // Initialize Tamadex
+  for (int i=0; i<25; i++) {dex[i] = false;}
+  setID(0);//rand()%25;
+  
 
   delay(1000);
   ab.clear();
@@ -421,7 +437,7 @@ void loop() {
       if (bored  < bmax) {bored++;}
 
       //Check if the Tamagero is dead
-      if (hungry >= hmax || dirty >= dmax) {
+      if (hungry >= hmax-1 || dirty >= dmax-1) {
         // DEATH
         alive = false;
         hungry = 0; bored = 0; dirty = 0; xp = 0;
@@ -431,12 +447,13 @@ void loop() {
         // EXP System
         if (xpcntr <= 0) {
           xp++; txp++; xpcntr = 300; 
-          money++;
           if (bored <= 0.1*bmax) {money++;}
+          if (xp > level*10 + 0.1*xp) {level++; money = money+10+level;}
         } else {
           xpcntr--;
         }
       }
+      
     }
   }
 
@@ -500,19 +517,34 @@ void loop() {
       if (MenuSel==2) {bored = 0;}
       if (MenuSel==3) {age = 0; egg = true; alive = true;}
     }
-    else if (ab.pressed(B_BUTTON)) { MenuNextSt = 0; }
+    else if (ab.pressed(B_BUTTON)) { MenuNextSt = 0; delay(Twait); }
     else if (ab.pressed(UP_BUTTON) && MenuSel > 0) { MenuSel = MenuSel - 1; delay(Twait); }
     else if (ab.pressed(DOWN_BUTTON) && MenuSel < 3) {  MenuSel = MenuSel + 1; delay(Twait); }
   }
   
   // Stats Menu
   if (MenuSt == 1) {
-    if (ab.pressed(A_BUTTON) || ab.pressed(B_BUTTON)) { MenuNextSt = 0; }
+    if (ab.pressed(B_BUTTON)) { MenuNextSt = 0; delay(Twait); }
+    else if (ab.pressed(A_BUTTON)) { 
+      if (MenuSel==0) { MenuNextSt = 3;}
+      if (MenuSel==1) { MenuNextSt = 4;}
+      delay(Twait); 
+    }
     else if (ab.pressed(UP_BUTTON) && MenuSel > 0) { MenuSel = MenuSel - 1; delay(Twait); }
-    else if (ab.pressed(DOWN_BUTTON) && MenuSel < 0) {  MenuSel = MenuSel + 1; delay(Twait); }
+    else if (ab.pressed(DOWN_BUTTON) && MenuSel < 1) {  MenuSel = MenuSel + 1; delay(Twait); }
+  }
+  
+  // Info Menus
+  if (MenuSt == 3 || MenuSt == 4) {
+    if (ab.pressed(B_BUTTON)) { MenuNextSt = 1; delay(Twait); }
+    else if (ab.pressed(A_BUTTON)) {  MenuNextSt = 0; delay(Twait); }
   }
 
-  // Update graphics
+
+
+
+
+  // <> <> <> <> <> <> <> <> <>  Update graphics <> <> <> <> <> <> <> <> <> 
   ab.clear();
   //ab.drawSlowXYBitmap(50, 10, (tama0), 16, 16, WHITE);
   ab.drawSlowXYBitmap(0, 0, (tamabg), 128,64, WHITE);
@@ -524,11 +556,19 @@ void loop() {
   ab.fillRect(23,23, L,  3,WHITE);//FUN
 
   // Draw tamagero sprite
+  if (aniTimer<=0) {
+    if (aniSt==0) {aniSt=1; aniTimer=1; aniX++;}
+    else if (aniSt==1) {aniSt=2; aniTimer=1; aniX++;}
+    else if (aniSt==2) {aniSt=3; aniTimer=1; }
+    else if (aniSt==3) {aniSt=4; aniTimer=30 +  (rand() % 30);}
+    else if (aniSt==4) {aniSt=5; aniTimer=1;  aniX--;}
+    else if (aniSt==5) {aniSt=0; aniTimer=40 +  (rand() % 30);  aniX--; aniDir = 2*(rand()%2)-1;}
+  } else {aniTimer--;}
   if (alive) {
     if (egg) {
-      ab.drawSlowXYBitmap(72, 15, ntamago, 16, 16, BLACK);
+      ab.drawSlowXYBitmap(75, 15, ntamago, 16, 16, BLACK);
     } else {
-      ab.drawSlowXYBitmap(72, 15, (ntamablock + 32*tamaid), 16, 16, BLACK);
+      ab.drawSlowXYBitmap(75+aniDir*aniX, 15-(aniSt%2), (ntamablock + 32*tamaid), 16, 16, BLACK);
     }
   }
 
@@ -536,7 +576,7 @@ void loop() {
   // <> <> <> <> <> <> <> <> <> Menu Text <> <> <> <> <> <> <> <> <> <> 
   ab.setCursor(0,32);
   //ab.print("  Actions\n* Statistics\n  Sleep\n  Settings");
-  if (MenuSt == 0) {// Menu Menu
+  if (MenuSt == 0) {// Main Menu
     if (MenuSel==0) {ab.print("*");} else {ab.print(" ");}
     ab.print(" Actions\n");
     if (MenuSel==1) {ab.print("*");} else {ab.print(" ");}
@@ -544,7 +584,9 @@ void loop() {
     if (MenuSel==2) {ab.print("*");} else {ab.print(" ");}
     ab.print(" Toggle LED\n");
 //    if (MenuSel==3) {ab.print("*");} else {ab.print(" ");}
-
+ab.print(aniTimer);
+ab.print("|");
+ab.print(aniSt);
 //    ab.print(" Settings");
   }
   if (MenuSt == 2) {// Action Menu
@@ -558,20 +600,37 @@ void loop() {
     ab.print(" RESET!");
   }
   if (MenuSt == 1) { // Stats Menu
-    //ab.print("Nothing here but\nus chickens!\n<( o)");
-    //        #####################
-    // Tamagero Info
+    if (MenuSel==0) {ab.print("*");} else {ab.print(" ");}
+    ab.print(" Tama Stats\n");
+    if (MenuSel==1) {ab.print("*");} else {ab.print(" ");}
+    ab.print(" Player Stats\n");
+  }
+  if (MenuSt==3) {  // Tamagero Info
     if (tamaid!=11) { ab.print(tamanames[(tamaid % 25)]); }
-    else {ab.print(tamanames[11]);}
-    ab.print("  Age:###hr\n");
-    ab.print("Xp: ####    Level:###\n");
-
-    //   Player Info
+    else {ab.print(tamanames[25]);}
+    ab.print(" \nAge:");
+    ab.print((((age)/30.0)/3600.0),3);
+    ab.print(" hr\nXp: ");
+    ab.print(xp);
+    ab.print("  \nLvl:");
+    ab.print(level);
+  }
+  if (MenuSt==4) {  //   Player Info
     //        #####################
-    ab.print("Total Xp: #######\n");
-    ab.print("Money: #######\n");
-    ab.print("ooxo xoox ooxx ooox x"); //Tamadex
-    ab.print("ooxo xoox ooxx oooo  "); //Tamadex
+    ab.print(  "Total Xp: ");
+    ab.print(txp);
+    ab.print("\nMoney:    ");
+    ab.print(money);
+    
+    //Tamadex display
+    ab.print("\nDex ");
+    for (int i=0; i<25; i++) {
+      if (dex[i]) {ab.print("o");}
+      else {ab.print("-");}
+      if (i==12) {ab.print("\n    ");}
+      //if ((i%4==3)&(i<16)) {ab.print("  ");}
+      //if ((i%4==0)&(i>16)) {ab.print("  ");}
+    }
   }
   
   //ab.print("  (");
@@ -583,8 +642,8 @@ void loop() {
   //ab.print(L);
   ab.display();
 
-  if (ab.pressed(RIGHT_BUTTON)) {tamaid = (tamaid+1)%25; delay(Twait);}
-  if (ab.pressed(LEFT_BUTTON))  {tamaid = (tamaid+24)%25; delay(Twait);}
+  if (ab.pressed(RIGHT_BUTTON)) {setID((tamaid+1)%25); delay(Twait);}
+  if (ab.pressed(LEFT_BUTTON))  {setID((tamaid+24)%25); delay(Twait);}
   
 }
 
