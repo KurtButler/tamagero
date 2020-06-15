@@ -58,7 +58,7 @@ const int8_t sprite[32] PROGMEM = {
 // -  - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 int dialogue(String string) {
   ab.setCursor(0,0);
-  ab.print("\n!!");
+  ab.print("\n");
   ab.print(string);
   //some other stuff to make this look nice
   ab.display();
@@ -66,6 +66,7 @@ int dialogue(String string) {
   ab.pollButtons();
   delay(Twait);
   while (!ab.pressed(A_BUTTON)) { ab.pollButtons(); }
+  delay(Twait);
   return 0;
 }
 
