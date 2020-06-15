@@ -12,4 +12,4 @@ Tamagero passively aqcuire Xp. If your tamagero is having lots of fun, then it m
 
 Money is required to feed, clean and buy new tamagero. Money is obtained primarily through leveling up, but in a future update there maybe be some additional features. To make this not be a burden, the money system is pretty generous right now.
 
-There are 25 standard tamagero in total. I hope that you enjoy all of them.
+There are 25 standard tamagero; I hope that you enjoy all of them.
